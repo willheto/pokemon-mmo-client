@@ -1,0 +1,13 @@
+body {
+	margin: 0;
+}
+
+@font-face {
+	font-family: 'Pkmn';
+	src: url('./assets/fonts/pkmn_font.ttf') format('truetype');
+}
+
+canvas {
+	image-rendering: pixelated;
+	image-rendering: crisp-edges;
+}
