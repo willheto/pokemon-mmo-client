@@ -7,6 +7,7 @@ import Player from '../player/Player';
 import Npc from '../npcs/Npc';
 import pako from 'pako';
 import AudioManager from '../managers/AudioManager';
+import { canvas2d } from '../graphics/Canvas';
 
 const UPDATE_REQUEST = {
 	CHECK_FOR_UPDATES: 1,
@@ -71,16 +72,16 @@ export default class Client {
 	}
 
 	public async startClient(): Promise<void> {
+		canvas2d.imageSmoothingEnabled = false;
+
 		Draw2D.fillCanvas('black');
-		Draw2D.showProgress(10, 'Connecting to update server');
-		Draw2D.fillCanvas('black');
+		Draw2D.showProgress(0, 'Connecting to update server');
 		const updateServerSocket = await this.connectToUpdateServer();
 		Draw2D.fillCanvas('black');
 		Draw2D.showProgress(20, 'Downloading assets');
 
 		updateServerSocket.onmessage = async (event): Promise<void> => {
 			const data = JSON.parse(event.data);
-			console.log('Update server response:', data);
 			if (data.type === UPDATE_RESPONSE.UPDATE_AVAILABLE) {
 				Draw2D.fillCanvas('black');
 				Draw2D.showProgress(50, 'Unpacking assets');
@@ -89,9 +90,6 @@ export default class Client {
 				Draw2D.fillCanvas('black');
 				Draw2D.showProgress(90, 'Connecting to login server');
 
-				Draw2D.showProgress(95, 'Loading audio files');
-				await this.audioManager.loadAudio();
-
 				await this.connectToLoginServer();
 			} else if (data.type === UPDATE_RESPONSE.CACHE_UP_TO_DATE) {
 				this.cacheNumber = await Cache.getCacheNumber();
@@ -99,9 +97,6 @@ export default class Client {
 				Draw2D.showProgress(30, 'Already up to date');
 				Draw2D.fillCanvas('black');
 				Draw2D.showProgress(70, 'Connecting to login server');
-
-				Draw2D.showProgress(80, 'Loading audio files');
-				await this.audioManager.loadAudio();
 
 				await this.connectToLoginServer();
 			}
@@ -121,6 +116,12 @@ export default class Client {
 			const socket = new WebSocket(UPDATE_SERVER_ADDRESS);
 			socket.onopen = (): void => {
 				resolve(socket);
+			};
+			socket.onerror = (): void => {
+				Draw2D.showProgress(0, 'Error connecting to update server, trying again in 10 seconds...');
+				setTimeout(() => {
+					this.startClient();
+				}, 10000);
 			};
 		});
 	}
@@ -154,6 +155,13 @@ export default class Client {
 				if (gameData.playerID) {
 					if (!this.world) return;
 					this.world.currentPlayerID = gameData.playerID;
+					const currentPlayer = gameData.players.find(player => {
+						return player.entityID === gameData.playerID;
+					});
+
+					if (currentPlayer) {
+						this.world.shouldRenderTutorial = currentPlayer.storyProgress === 0;
+					}
 					this.updateGameState(gameData);
 					this.world.init();
 
@@ -175,6 +183,7 @@ export default class Client {
 		return new Promise((resolve, reject) => {
 			const socket = new WebSocket(`${GAME_SERVER_ADDRESS}/?loginToken=${loginToken}`);
 			socket.onopen = (): void => {
+				this.login?.destroy();
 				resolve(socket);
 			};
 			socket.onerror = (): void => {
@@ -230,7 +239,6 @@ export default class Client {
 	}
 
 	private updateGameState(gameData: GameState): void {
-		console.log('Updating game state:', gameData);
 		if (!this.world) return;
 		const { players, npcs, chatMessages, onlinePlayers } = gameData;
 

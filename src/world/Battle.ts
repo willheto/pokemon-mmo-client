@@ -265,11 +265,11 @@ export default class Battle {
 				if (moveUsed && moveUsed.power) {
 					const moveNameLower = moveUsed.name.toLowerCase();
 					const trimmedMoveName = moveNameLower.replace(/ /g, '');
-					const sfxLength = this.world.client.audioManager.getAudioLength(`${trimmedMoveName}.wav`);
-					this.world.client.audioManager.playSfx(`${trimmedMoveName}.wav`, false);
+					const sfxLength = this.world.client.audioManager.getAudioLength(`${trimmedMoveName}.ogg`);
+					this.world.client.audioManager.playSfx(`${trimmedMoveName}.ogg`, false);
 
 					setTimeout(() => {
-						this.world.client.audioManager.playSfx(`take_damage.wav`, false);
+						this.world.client.audioManager.playSfx(`take_damage.ogg`, false);
 
 						const handleHpChange = (
 							entity: Player | Npc,
@@ -518,7 +518,7 @@ export default class Battle {
 			// draw spawn animation
 			if (this.playerSentOutCounter < 125) {
 				if (this.playerSentOutCounter === 121) {
-					this.world.client.audioManager.playSfx('ball_poof.wav', false);
+					this.world.client.audioManager.playSfx('ball_poof.ogg', false);
 				}
 				canvas2d.drawImage(this.pokemonSpawnFrames[0].image, 50, 200, 200, 200);
 			} else if (this.playerSentOutCounter < 130) {
@@ -551,7 +551,7 @@ export default class Battle {
 			// draw spawn animation
 			if (this.enemySentOutCounter < 185) {
 				if (this.enemySentOutCounter === 181) {
-					this.world.client.audioManager.playSfx('ball_poof.wav', false);
+					this.world.client.audioManager.playSfx('ball_poof.ogg', false);
 				}
 				canvas2d.drawImage(this.pokemonSpawnFrames[0].image, 750, 0, 200, 200);
 			} else if (this.enemySentOutCounter < 190) {

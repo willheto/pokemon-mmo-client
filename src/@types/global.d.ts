@@ -15,6 +15,8 @@ type PokemonMove = {
 	effect: string;
 };
 
+type BattleActionType = 'FIGHT' | 'ITEM' | 'POKEMON' | 'RUN';
+
 type Pokemon = {
 	id: number;
 	hp: number;
@@ -100,6 +102,7 @@ interface PlayerInterface {
 	party: Pokemon[];
 	inventory: number[];
 	inventoryAmounts: number[];
+	storyProgress: number;
 }
 
 type GameState = {
@@ -131,6 +134,7 @@ type WildBattleTurnEvent = {
 	switchedPokemonIndex: number;
 	effect: number;
 	actionType: string;
+	isCaught: boolean;
 };
 
 type ChatMessage = {

@@ -204,18 +204,18 @@ export default class Login {
 				y >= canvas.height / 2 - 104 &&
 				y <= canvas.height / 2 - 64
 			) {
-				this.client.audioManager.playSfx('click.wav');
+				this.client.audioManager.playSfx('click.ogg');
 				this.currentlyActiveScreen = 'login';
 			}
 		} else if (this.currentlyActiveScreen === 'login') {
 			if (x >= 509 && x <= 649 && y >= 279 && y <= 318) {
 				this.currentlyActiveScreen = 'title';
 				this.drawLoginScreen();
-				this.client.audioManager.playSfx('click.wav');
+				this.client.audioManager.playSfx('click.ogg');
 			} else if (x >= 349 && x <= 489 && y >= 279 && y <= 317) {
 				this.login();
 				this.drawLoginScreen();
-				this.client.audioManager.playSfx('click.wav');
+				this.client.audioManager.playSfx('click.ogg');
 			}
 		}
 	}

@@ -1,91 +1,81 @@
 import Cache from '../cache';
 
 export default class AudioManager {
-	public audioFiles: {
-		audio: HTMLAudioElement;
-		name: string;
-	}[] = [];
-
-	public currentSong: string = '';
+	public currentSong: HTMLAudioElement | null = null;
 	public isLoadingAudioFiles: boolean = true;
 
 	constructor() {
 		//
 	}
 
-	public async loadAudio(): Promise<void> {
-		this.isLoadingAudioFiles = true;
+	public async playMusic(fileName: string): Promise<void> {
+		const audioFile = await Cache.getObjectURLByAssetName(fileName);
 
-		const allWavFiles = await Cache.getAllWavFileURLs();
-
-		// Load all Audio instances in parallel
-		this.audioFiles = allWavFiles.map(wavFile => ({
-			audio: new Audio(wavFile.url),
-			name: wavFile.name,
-		}));
-
-		this.isLoadingAudioFiles = false;
-	}
-
-	public playMusic(fileName: string): void {
-		const audio = this.audioFiles.find(audio => audio.name === fileName);
-
-		this.audioFiles.forEach(audio => {
-			audio.audio.pause();
-			audio.audio.currentTime = 0;
-		});
-
-		if (!audio) return;
-		audio.audio.volume = 0.1;
-		audio.audio.loop = true;
-
-		audio.audio.play();
-		this.currentSong = fileName;
-	}
-
-	public playSfx(fileName: string, pauseMusic: boolean = false): void {
-		const audio = this.audioFiles.find(audio => audio.name.toLowerCase() === fileName.toLowerCase());
-		if (!audio) {
+		if (audioFile === null) {
 			console.error('Audio file not found:', fileName);
 			return;
 		}
-		const audioLength = audio.audio.duration * 1000;
+
+		this.currentSong?.pause();
+
+		const audio = new Audio(audioFile);
+		audio.volume = 0.1;
+		audio.loop = true;
+		audio.play();
+
+		this.currentSong = audio;
+	}
+
+	public async playSfx(fileName: string, pauseMusic: boolean = false): Promise<void> {
+		const audioFile = await Cache.getObjectURLByAssetName(fileName);
+
+		if (audioFile === null) {
+			console.error('Audio file not found:', fileName);
+			return;
+		}
+		const audioLength = await this.getAudioLength(fileName);
 
 		if (pauseMusic) {
 			// briefly silence the music
-			this.audioFiles.forEach(audio => {
-				audio.audio.volume = 0;
-			});
+			this.currentSong?.pause();
 
 			// resume the music
 			setTimeout(() => {
-				this.audioFiles.forEach(audio => {
-					audio.audio.volume = 0.1;
-
-					if (audio.audio.loop) {
-						audio.audio.play();
-					}
-				});
+				this.currentSong?.play();
 			}, audioLength);
 		}
 
-		audio.audio.volume = 0.1;
-		audio.audio.play();
+		const audio = new Audio(audioFile);
+		audio.volume = 0.1;
+		audio.play();
 	}
 
-	public getAudioLength(fileName: string): number {
-		const audio = this.audioFiles.find(audio => audio.name.toLowerCase() === fileName.toLowerCase());
-		if (!audio) {
+	public async getAudioLength(fileName: string): Promise<number> {
+		const audioFile = await Cache.getObjectURLByAssetName(fileName);
+
+		if (audioFile === null) {
 			console.error('Audio file not found:', fileName);
 			return 0;
 		}
-		return audio.audio.duration * 1000;
+
+		return new Promise((resolve, reject) => {
+			const audio = new Audio(audioFile);
+
+			// Event listener to wait for the metadata to load
+			audio.addEventListener('loadedmetadata', () => {
+				// Resolve with the audio duration in milliseconds
+				resolve(audio.duration * 1000);
+			});
+
+			// Error handling in case the audio file cannot be loaded
+			audio.addEventListener('error', err => {
+				console.error('Error loading audio file:', err);
+				reject(0);
+			});
+		});
 	}
 
 	public stopMusic(): void {
-		this.audioFiles.forEach(audio => {
-			audio.audio.pause();
-			audio.audio.currentTime = 0;
-		});
+		this.currentSong?.pause();
 	}
 }

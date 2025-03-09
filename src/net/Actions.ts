@@ -286,4 +286,14 @@ export class Actions {
 
 		this.gameSocket?.send(JSON.stringify(actionData));
 	}
+
+	public updateStoryProgress(playerID: string, progress: number): void {
+		this.gameSocket?.send(
+			JSON.stringify({
+				action: 'updateStoryProgress',
+				playerID: playerID,
+				progress: progress,
+			}),
+		);
+	}
 }

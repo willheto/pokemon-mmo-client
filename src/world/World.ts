@@ -14,6 +14,7 @@ import Hud from './Hud';
 import WildBattle from './WildBattle';
 import PokemonsManager from '../managers/PokemonsManager';
 import ItemsManager from '../managers/ItemsManager';
+import Tutorial from './Tutorial';
 
 export type ModalObject = {
 	modalX: number;
@@ -32,8 +33,8 @@ export type ModalObject = {
 };
 
 export default class World {
-	public readonly maxWorldCol: number = 200;
-	public readonly maxWorldRow: number = 200;
+	public readonly maxWorldCol: number = 400;
+	public readonly maxWorldRow: number = 400;
 	public readonly originalTileSize: number = 8;
 	public readonly scale: number = 4;
 	public readonly tileSize: number = this.originalTileSize * this.scale;
@@ -65,6 +66,7 @@ export default class World {
 	public itemsManager: ItemsManager = new ItemsManager();
 
 	public battle: Battle | WildBattle | null = null;
+	private tutorial: Tutorial | null = null;
 
 	public hud: Hud = new Hud(this);
 	public actions: Actions | null = null;
@@ -93,7 +95,7 @@ export default class World {
 	public wildBattleTurnEvents: WildBattleTurnEvent[] = [];
 	public openShopID: string | null = null;
 
-	public isBattling: boolean = false;
+	public shouldRenderTutorial: boolean = false;
 
 	constructor(client: Client) {
 		this.client = client;
@@ -121,7 +123,9 @@ export default class World {
 
 	public init(): void {
 		this.initializeEventListeners();
-		this.client.audioManager.playMusic('new_bark_town.mp3');
+		if (!this.shouldRenderTutorial) {
+			this.client.audioManager.playMusic('new_bark_town.mp3');
+		}
 	}
 
 	public async update(): Promise<void> {
@@ -130,8 +134,17 @@ export default class World {
 		const fps = 1000 / deltaTime;
 		this.fpsShowCounter += deltaTime;
 		this.lastFrameTime = timeNow;
+		if (this.shouldRenderTutorial) {
+			if (!this.tutorial) {
+				this.tutorial = new Tutorial(this);
+			}
+			this.tutorial.update();
+			this.tutorial.draw();
+			return;
+		}
 
-		if (this.isBattling) {
+		if (this.battle !== null) {
+			this.battle?.update();
 			this.battle?.draw();
 
 			if (this.showDebug) {
@@ -175,7 +188,6 @@ export default class World {
 		}
 
 		for (const battleEvent of this.battleEvents) {
-			this.isBattling = true;
 			const isPlayerEntity1 = this.currentPlayerID === battleEvent.entity1ID;
 			const player = this.players.find(player => player.entityID === this.currentPlayerID);
 
@@ -196,7 +208,6 @@ export default class World {
 
 			if (player) {
 				const battle = new WildBattle(this, player, wildPokemonEvent.wildPokemon);
-				this.isBattling = true;
 				this.battle = battle;
 				this.battle.initBattle();
 			}
@@ -291,7 +302,11 @@ export default class World {
 		};
 
 		canvas.onclick = (e: any): void => {
-			if (this.isBattling) {
+			if (this.shouldRenderTutorial) {
+				this.tutorial?.handleClick(e);
+				return;
+			}
+			if (this.battle !== null) {
 				this.battle?.handleClick(e);
 				return;
 			}

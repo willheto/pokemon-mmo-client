@@ -3,26 +3,12 @@ import Player from '../player/Player';
 import World from './World';
 
 export default class WildBattle {
-	world: World;
-	player: Player;
-	wildPokemon: Pokemon;
+	// Initial values set on the constructor
+	private world: World;
+	private player: Player;
+	private wildPokemon: Pokemon;
 
-	public currentEncounterFrame: number = 1;
-	public encounterFrameCounter: number = 0;
-	public currentBattleIntroFrame: number = 1;
-	public battleIntroFrameCounter: number = 0;
-
-	public trainerFrontImage: HTMLImageElement | null = null;
-	public trainerBackImage: HTMLImageElement | null = null;
-	public counterPokeBallImage: HTMLImageElement | null = null;
-
-	private currentStep: number = 0;
-
-	public battleBackgroundImage: {
-		image: HTMLImageElement;
-		name: string;
-	} | null = null;
-
+	// Battle assets
 	public battleEncounterFrames: {
 		frame: number;
 		image: HTMLImageElement;
@@ -33,18 +19,24 @@ export default class WildBattle {
 		image: HTMLImageElement;
 	}[] = [];
 
-	public playerPokemonSprites: HTMLImageElement[] = [];
-	public wildPokemonSprite: HTMLImageElement | null = null;
+	public currentEncounterFrame: number = 0;
+	public encounterFrameCounter: number = 0;
+	public currentBattleIntroFrame: number = 0;
+	public battleIntroFrameCounter: number = 0;
+	public pokemonCounterCounter: number = 0;
+	public enemySentOutCounter: number = 0;
+	public playerSentOutCounter: number = 0;
+
+	public battleBackgroundImage: HTMLImageElement | null = null;
+	private playerPokemonSprites: HTMLImageElement[] = [];
+	private wildPokemonSprite: HTMLImageElement | null = null;
 	private statsMeterEnemyImage: HTMLImageElement | null = null;
 	private statsMeterPlayerImage: HTMLImageElement | null = null;
 	private battleOptionsImage: HTMLImageElement | null = null;
 	private hpGaugeImage: HTMLImageElement | null = null;
-
+	public trainerBackImage: HTMLImageElement | null = null;
+	public counterPokeBallImage: HTMLImageElement | null = null;
 	public pokemonCounterImage: HTMLImageElement | null = null;
-	public pokemonCounterCounter: number = 0;
-
-	public enemySentOutCounter: number = 0;
-	public playerSentOutCounter: number = 0;
 
 	private playerCurrentPokemonIndex: number = 0;
 
@@ -52,13 +44,9 @@ export default class WildBattle {
 	private activeOption: 'fight' | 'pkmn' | 'pack' | null = null;
 	private hoveredMove: number | null = null;
 	private isWaitingForOtherPlayer: boolean = false;
-	private isPlayersTurnBeenExecuted: boolean = false;
-	private isEnemysTurnBeenExecuted: boolean = false;
-	private battleOver: boolean = false;
-	private isPlayerWinner: boolean = false;
 
-	private playerCurrentPokemonPreviousHp: number = 0;
-	private enemyCurrentPokemonPreviousHp: number = 0;
+	private playerPokemonHp: number = 0;
+	private enemyPokemonHp: number = 0;
 
 	private isActionSelected: boolean = false;
 	private isMouseOverPkmn: boolean = false;
@@ -66,98 +54,32 @@ export default class WildBattle {
 	private isMouseOverRun: boolean = false;
 	private hoveredPokemon: number | null = null;
 	private hoveredItem: number | null = null;
-	private currentMoveText: string = '';
 	private isHoveringContinue: boolean = false;
-	private pokemonWasCaught: boolean = false;
-	private isDamageTakenFlashingShown: boolean = false;
-	private damageTakenFlashingCounter: number = 0;
+	private isBattleOver: boolean = false;
+	private isPlayerWinner: boolean = false;
+
+	private isEncounterAnimationDone: boolean = false;
+	private isIntroDone: boolean = false;
+
+	private eventQueue: WildBattleTurnEvent[] = [];
+
+	private isPlayersPokemonSentOut: boolean = false;
+	private isProcessingTurn: boolean = false;
+
+	private displayedTextRow1: string = '';
+	private displayedTextRow2: string = '';
 
 	constructor(world: World, player: Player, wildPokemon: Pokemon) {
 		this.world = world;
 		this.player = player;
 		this.wildPokemon = wildPokemon;
-		this.playerCurrentPokemonIndex = 0;
+		const firstIndexWhereHealthyPokemon = this.player.party.findIndex(pokemon => pokemon?.hp > 0);
+		this.playerCurrentPokemonIndex = firstIndexWhereHealthyPokemon;
 
 		this.loadAssets();
 
-		this.setPlayerCurrentPokemonPreviousHp(
-			this.player.party.filter(pokemon => pokemon !== null)[this.playerCurrentPokemonIndex].hp,
-		);
-
-		this.setEnemyCurrentPokemonPreviousHp(this.wildPokemon.hp);
-	}
-
-	private setPlayerCurrentPokemonPreviousHp(hp: number) {
-		this.playerCurrentPokemonPreviousHp = hp;
-	}
-
-	private setEnemyCurrentPokemonPreviousHp(hp: number) {
-		this.enemyCurrentPokemonPreviousHp = hp;
-	}
-
-	private async loadAssets(): Promise<void> {
-		const sprite = await this.world.spriteCache.getSprite('blank_battle_screen.png');
-		if (sprite) {
-			this.battleBackgroundImage = {
-				image: sprite,
-				name: 'blank_battle_screen.png',
-			};
-		}
-
-		const numberOfFrames = 28;
-
-		for (let i = 1; i < numberOfFrames + 1; i++) {
-			const battleEncounterFrame = await this.world.spriteCache.getSprite(`encounter_frame_${i}.png`);
-			if (battleEncounterFrame) {
-				this.battleEncounterFrames.push({
-					frame: i,
-					image: battleEncounterFrame,
-				});
-			}
-		}
-
-		for (let i = 1; i < 4 + 1; i++) {
-			const pokemonSpawnFrame = await this.world.spriteCache.getSprite(`spawn_pokemon_frame_${i}.png`);
-			if (pokemonSpawnFrame) {
-				this.pokemonSpawnFrames.push({
-					frame: i,
-					image: pokemonSpawnFrame,
-				});
-			}
-		}
-
-		this.trainerFrontImage = await this.world.spriteCache.getSprite('trainer_front.png');
-		this.trainerBackImage = await this.world.spriteCache.getSprite('trainer_back.png');
-		this.pokemonCounterImage = await this.world.spriteCache.getSprite('pokemon_counter.png');
-		this.counterPokeBallImage = await this.world.spriteCache.getSprite('counter_poke_ball.png');
-		this.statsMeterEnemyImage = await this.world.spriteCache.getSprite('stats_meter_enemy.png');
-		this.statsMeterPlayerImage = await this.world.spriteCache.getSprite('stats_meter_player.png');
-		this.battleOptionsImage = await this.world.spriteCache.getSprite('battle_options.png');
-		this.hpGaugeImage = await this.world.spriteCache.getSprite('hp_gauge.png');
-
-		this.player.party.forEach(async (pokemon, index) => {
-			const pokemonData = this.world.pokemonsManager.getPokemonInfoByIndex(pokemon?.id);
-			if (!pokemonData) return;
-
-			if (pokemon) {
-				const sprite = await this.world.spriteCache.getSprite(`${pokemonData.sprite}_back.png`);
-				if (sprite) {
-					this.playerPokemonSprites[index] = sprite;
-				} else {
-					throw new Error(`Failed to load sprite for ${pokemonData.name}`);
-				}
-			}
-		});
-
-		const pokemonData = this.world.pokemonsManager.getPokemonInfoByIndex(this.wildPokemon.id);
-		if (!pokemonData) return;
-
-		const wildPokemonSprite = await this.world.spriteCache.getSprite(`${pokemonData.sprite}.png`);
-		if (wildPokemonSprite) {
-			this.wildPokemonSprite = wildPokemonSprite;
-		} else {
-			throw new Error(`Failed to load sprite for ${pokemonData.name}`);
-		}
+		this.playerPokemonHp = this.player.party.filter(pokemon => pokemon !== null)[this.playerCurrentPokemonIndex].hp;
+		this.enemyPokemonHp = this.wildPokemon.hp;
 	}
 
 	public initBattle() {
@@ -182,7 +104,7 @@ export default class WildBattle {
 		}
 
 		if (this.currentEncounterFrame === 28) {
-			this.currentStep = 1;
+			this.isEncounterAnimationDone = true;
 		}
 
 		this.encounterFrameCounter++;
@@ -239,304 +161,267 @@ export default class WildBattle {
 		}
 	}
 
-	public draw() {
-		if (this.world.wildBattleTurnEvents.length > 0) {
-			this.world.wildBattleTurnEvents.forEach(event => {
-				if (event.actionType === 'ITEM') {
-					const pokemonName = this.world.pokemonsManager.getPokemonInfoByIndex(this.wildPokemon.id)?.name;
-					if (event.itemUsedId === 1) {
-						if (event.isCaught) {
-							this.pokemonWasCaught = true;
-							this.world.client.audioManager.playMusic('wild_victory.mp3');
-							this.isWaitingForOtherPlayer = false;
-							this.isPlayersTurnBeenExecuted = false;
-							this.isEnemysTurnBeenExecuted = false;
-							this.isActionSelected = false;
-							this.battleOver = true;
-							this.isPlayerWinner = true;
+	public update(): void {
+		this.processBattleEvents();
+	}
+
+	private processBattleEvents(): void {
+		const wildBattleTurnEvents = this.world.wildBattleTurnEvents;
+
+		if (wildBattleTurnEvents.length > 0) {
+			this.eventQueue = [...wildBattleTurnEvents];
+		}
+
+		if (this.isProcessingTurn || this.isPlayersPokemonSentOut === false) {
+			return;
+		}
+
+		if (this.eventQueue.length === 0) {
+			return;
+		}
+
+		const nextEvent = this.eventQueue[0];
+		const eventType = nextEvent.actionType;
+
+		this.isProcessingTurn = true;
+		switch (eventType) {
+			case 'FIGHT':
+				this.handleFight(nextEvent);
+				break;
+			case 'POKEMON':
+				this.setCurrentPokemon(nextEvent);
+				break;
+			case 'ITEM':
+				this.handleItemUse(nextEvent);
+				break;
+			case 'RUN':
+				this.handleRun(nextEvent);
+				break;
+		}
+
+		// Remove the event
+		this.world.wildBattleTurnEvents = [];
+		this.eventQueue.shift();
+	}
+
+	private async handleFight(event: WildBattleTurnEvent): Promise<void> {
+		const isPlayersMove = event.isPlayersMove;
+		const pokemonHpAfterMove = event.newHp;
+		const moveUsed = this.world.pokemonMovesManager.getPokemonMoveInfoById(event.moveId);
+		const pokemonName = isPlayersMove
+			? this.world.pokemonsManager.getPokemonInfoByIndex(
+					this.player.party.filter(pokemon => pokemon !== null)[this.playerCurrentPokemonIndex].id,
+				)?.name
+			: this.world.pokemonsManager.getPokemonInfoByIndex(this.wildPokemon.id)?.name;
+
+		this.world.client.audioManager.playSfx(`${moveUsed?.name.toLowerCase().replace(/ /g, '')}.ogg`, false);
+		const sfxLength = await this.world.client.audioManager.getAudioLength(
+			`${moveUsed?.name.toLowerCase().replace(/ /g, '')}.ogg`,
+		);
+
+		if (isPlayersMove) {
+			this.displayedTextRow1 = `${pokemonName} used ${moveUsed?.name}!`;
+		} else {
+			this.displayedTextRow1 = `Enemy ${pokemonName} used ${moveUsed?.name}!`;
+		}
+
+		if (moveUsed?.power !== null && moveUsed?.power !== 0) {
+			setTimeout(() => {
+				this.world.client.audioManager.playSfx(`take_damage.ogg`, false);
+
+				if (event.effect === 1) {
+					this.displayedTextRow2 = `It's super effective!`;
+				} else if (event.effect === -1) {
+					this.displayedTextRow2 = `It's not very effective...`;
+				}
+
+				if (isPlayersMove) {
+					const interval = setInterval(() => {
+						if (this.enemyPokemonHp > pokemonHpAfterMove) {
+							this.enemyPokemonHp--;
 						} else {
-							this.currentMoveText = 'The wild ' + pokemonName + ' broke free!';
+							clearInterval(interval); // Stop when the condition is met
+
+							if (event.isBattleOver) {
+								setTimeout(() => {
+									const wildPokemonName = this.world.pokemonsManager.getPokemonInfoByIndex(
+										this.wildPokemon.id,
+									)?.name;
+									this.displayedTextRow1 = `Enemy ${wildPokemonName} was defeated!`;
+									this.displayedTextRow2 = 'Click here to continue...';
+									this.isBattleOver = true;
+									this.isPlayerWinner = event.isPlayerWinner;
+									this.world.client.audioManager.playMusic('wild_victory.mp3');
+								}, 1000);
+							} else {
+								setTimeout(() => {
+									this.isProcessingTurn = false;
+									this.displayedTextRow1 = '';
+									this.displayedTextRow2 = '';
+								}, 1000);
+							}
 						}
-					} else {
-						this.currentMoveText = 'Absolutely nothing happened!';
-					}
-				}
-				if (event.actionType === 'RUN') {
-					if (event.isRunSuccessful) {
-						this.currentMoveText = 'Got away safely!';
-
-						setTimeout(() => {
-							this.leaveBattle();
-						}, 3000);
-					} else {
-						this.currentMoveText = "Can't escape!";
-					}
-				}
-				if (event.switchedPokemonIndex !== -1) {
-					if (event.isPlayersMove) {
-						this.playerCurrentPokemonIndex = event.switchedPokemonIndex;
-						this.playerCurrentPokemonPreviousHp = this.player.party.filter(pokemon => pokemon !== null)[
-							this.playerCurrentPokemonIndex
-						].hp;
-						this.currentStep = 3;
-						this.playerSentOutCounter = 0;
-					} else {
-						this.enemySentOutCounter = 0;
-					}
-				}
-
-				if (event.isPlayersMove && event.moveId !== 0) {
-					this.wildPokemon.hp = event.newHp;
-				}
-
-				const moveUsed = this.world.pokemonMovesManager.getPokemonMoveInfoById(event.moveId);
-				if (moveUsed && !moveUsed.power) {
-					const moveUserIsPlayer = event.isPlayersMove;
-
-					const userPokemonId = moveUserIsPlayer
-						? this.player.party.filter(pokemon => pokemon !== null)[this.playerCurrentPokemonIndex].id
-						: this.wildPokemon.id;
-					const moveUserName =
-						this.world.pokemonsManager.getPokemonInfoByIndex(userPokemonId)?.name || 'Missing No.';
-					const moveName = moveUsed.name;
-					if (moveUserIsPlayer) {
-						this.currentMoveText = `${moveUserName} used ${moveName}!`;
-					} else {
-						this.currentMoveText = `Enemy ${moveUserName} used ${moveName}!`;
-					}
-					this.world.client.audioManager.playSfx(
-						`${moveUsed.name.toLowerCase().replace(/ /g, '')}.wav`,
-						false,
-					);
-				}
-
-				if (moveUsed && event.moveId !== 0 && moveUsed.power) {
-					const moveNameLower = moveUsed.name.toLowerCase();
-					const moveUserIsPlayer = event.isPlayersMove;
-
-					const userPokemonId = moveUserIsPlayer
-						? this.player.party.filter(pokemon => pokemon !== null)[this.playerCurrentPokemonIndex].id
-						: this.wildPokemon.id;
-					const moveUserName =
-						this.world.pokemonsManager.getPokemonInfoByIndex(userPokemonId)?.name || 'Missing No.';
-					const moveName = moveUsed.name;
-					if (moveUserIsPlayer) {
-						this.currentMoveText = `${moveUserName} used ${moveName}!`;
-					} else {
-						this.currentMoveText = `Enemy ${moveUserName} used ${moveName}!`;
-					}
-					const trimmedMoveName = moveNameLower.replace(/ /g, '');
-					const sfxLength = this.world.client.audioManager.getAudioLength(`${trimmedMoveName}.wav`);
-					this.world.client.audioManager.playSfx(`${trimmedMoveName}.wav`, false);
-
-					setTimeout(() => {
-						this.isDamageTakenFlashingShown = true;
-						this.world.client.audioManager.playSfx(`take_damage.wav`, false);
-
-						setTimeout(() => {
-							this.isDamageTakenFlashingShown = false;
-						}, 1000);
-
-						if (event.effect === 1) {
-							this.currentMoveText = `It's super effective!`;
-						} else if (event.effect === -1) {
-							this.currentMoveText = `It's not very effective...`;
-						}
-
-						const handleHpChange = (isPlayer: boolean) => {
-							const currentHp = isPlayer
-								? this.player.party.filter(pokemon => pokemon !== null)[this.playerCurrentPokemonIndex]
-										.hp
-								: this.wildPokemon.hp;
-
-							// interval time should depend on max hp. if liek 10, then it's kinda slow
-							// if it's 100, it's fast. so we can do 100 / max hp * 30
-
-							const intervalTime =
-								(100 /
-									(isPlayer
-										? this.player.party.filter(pokemon => pokemon !== null)[
-												this.playerCurrentPokemonIndex
-											].maxHp
-										: this.wildPokemon.maxHp)) *
-								30;
-
-							const interval = setInterval(() => {
-								// Get the previous HP depending on whether it's the player's or enemy's
-								const previousHp = isPlayer
-									? this.playerCurrentPokemonPreviousHp
-									: this.enemyCurrentPokemonPreviousHp;
-
-								// Check if HP has changed
-								if (previousHp !== currentHp) {
-									// Update the HP values
-									if (isPlayer) {
-										this.setPlayerCurrentPokemonPreviousHp(this.playerCurrentPokemonPreviousHp - 1);
-									} else {
-										this.setEnemyCurrentPokemonPreviousHp(this.enemyCurrentPokemonPreviousHp - 1);
-									}
-								} else {
-									// Once the HP stops changing, we check if the battle is over
-									this.currentMoveText = '';
-
-									// Check if battle is over
-									if (event.isBattleOver) {
-										setTimeout(() => {
-											if (event.isPlayersMove) {
-												this.battleOver = true;
-												this.isPlayerWinner = event.isPlayerWinner;
-												this.world.client.audioManager.playMusic('wild_victory.mp3');
-											} else {
-												if (event.isAllPokemonsFainted) {
-													this.battleOver = true;
-													this.isPlayerWinner = false;
-													this.world.battle = null;
-													this.world.isBattling = false;
-													this.world.client.audioManager.playMusic('new_bark_town.mp3');
-												} else {
-													this.activeOption = 'pkmn';
-													this.isPlayersTurnBeenExecuted = true;
-													this.isEnemysTurnBeenExecuted = true;
-													this.isWaitingForOtherPlayer = false;
-													this.isActionSelected = false;
-												}
-											}
-										}, 1000);
-									}
-
-									// Stop the interval once HP stops changing
-									clearInterval(interval);
-								}
-							}, intervalTime);
-						};
-
-						if (event.isPlayersMove) {
-							handleHpChange(false);
-						} else {
-							handleHpChange(true);
-						}
-					}, sfxLength + 1000);
-				}
-
-				if (event.isPlayersMove) {
-					this.isPlayersTurnBeenExecuted = true;
+					}, 100);
 				} else {
-					this.isEnemysTurnBeenExecuted = true;
+					const interval = setInterval(() => {
+						if (this.playerPokemonHp > pokemonHpAfterMove) {
+							this.playerPokemonHp--;
+						} else {
+							clearInterval(interval); // Stop when the condition is met
+
+							if (event.isBattleOver) {
+								if (event.isAllPokemonsFainted) {
+									this.displayedTextRow1 = 'All of your pokemons have fainted!';
+									this.displayedTextRow2 = 'Click here to continue...';
+								} else {
+									setTimeout(() => {
+										this.activeOption = 'pkmn';
+										this.isProcessingTurn = false;
+									}, 1000);
+								}
+							} else {
+								setTimeout(() => {
+									this.isProcessingTurn = false;
+									this.displayedTextRow1 = '';
+									this.displayedTextRow2 = '';
+								}, 1000);
+							}
+						}
+					}, 100);
+
+					// TODO: Lose condition
 				}
+			}, sfxLength + 1000);
+		} else {
+			setTimeout(() => {
+				this.displayedTextRow2 = 'But it failed!';
+				setTimeout(() => {
+					this.isProcessingTurn = false;
+					this.displayedTextRow1 = '';
+					this.displayedTextRow2 = '';
+				}, 2000);
+			}, sfxLength + 1000);
+		}
+	}
 
-				if (this.isPlayersTurnBeenExecuted && this.isEnemysTurnBeenExecuted) {
-					this.isWaitingForOtherPlayer = false;
-					this.isPlayersTurnBeenExecuted = false;
-					this.isEnemysTurnBeenExecuted = false;
-					this.isActionSelected = false;
-				}
+	private setCurrentPokemon(event: WildBattleTurnEvent) {
+		const pokemonIndex = event.switchedPokemonIndex;
+		this.playerCurrentPokemonIndex = pokemonIndex;
+		this.playerPokemonHp = this.player.party.filter(pokemon => pokemon !== null)[this.playerCurrentPokemonIndex].hp;
 
-				// Remove the event from the array
-				this.world.wildBattleTurnEvents = this.world.wildBattleTurnEvents.filter(
-					turnEvent => turnEvent !== event,
-				);
-			});
+		// check if in event queue there is a fight event with new hp
+		const fightEvent = this.eventQueue.find(e => e.actionType === 'FIGHT');
+
+		this.isPlayersPokemonSentOut = false;
+		this.playerSentOutCounter = 0;
+		this.isProcessingTurn = false;
+		this.displayedTextRow1 = '';
+		this.displayedTextRow2 = '';
+	}
+
+	private handleRun(event: WildBattleTurnEvent): void {
+		if (event.isRunSuccessful) {
+			this.displayedTextRow1 = 'Got away safely!';
+			this.displayedTextRow2 = 'Click here to continue...';
+			this.isBattleOver = true;
+		} else {
+			this.displayedTextRow1 = "Can't escape!";
+			setTimeout(() => {
+				this.isProcessingTurn = false;
+				this.displayedTextRow1 = '';
+				this.displayedTextRow2 = '';
+			}, 3000);
+		}
+	}
+
+	private handlePokeBallUse(event: WildBattleTurnEvent): void {
+		const pokemonName = this.world.pokemonsManager.getPokemonInfoByIndex(this.wildPokemon.id)?.name;
+		const isCaught = event.isCaught;
+
+		if (isCaught) {
+			this.isBattleOver = true;
+			this.world.client.audioManager.playMusic('wild_victory.mp3');
+			this.displayedTextRow1 = 'Gotcha! Wild ' + pokemonName + ' was caught!';
+			this.displayedTextRow2 = 'Click here to continue...';
+		} else {
+			this.displayedTextRow1 = 'The wild ' + pokemonName + ' broke free!';
+			setTimeout(() => {
+				this.isProcessingTurn = false;
+				this.displayedTextRow1 = '';
+				this.displayedTextRow2 = '';
+			}, 3000);
+		}
+	}
+
+	private handleItemUse(event: WildBattleTurnEvent): void {
+		switch (event.itemUsedId) {
+			case 1: // Poke Ball
+				this.handlePokeBallUse(event);
+				break;
+			default:
+				this.displayedTextRow1 = 'Absolutely nothing happened!';
+		}
+	}
+
+	public draw() {
+		if (this.isEncounterAnimationDone === false) {
+			this.runEncounterAnimation();
+			return;
 		}
 
-		if (this.currentStep !== 0) {
-			if (!this.battleBackgroundImage) return;
-			canvas2d.drawImage(this.battleBackgroundImage.image, 0, 0, 1000, 600);
+		if (!this.battleBackgroundImage) return;
+		canvas2d.drawImage(this.battleBackgroundImage, 0, 0, 1000, 600);
+
+		if (this.displayedTextRow1 !== '') {
+			canvas2d.fillStyle = 'black';
+			canvas2d.font = '30px Pkmn';
+			canvas2d.fillText(this.displayedTextRow1, 45, 485);
 		}
 
-		if (this.playerSentOutCounter > 145) {
-			this.drawPokemonAndItsStats(true);
+		if (this.displayedTextRow2 !== '') {
+			canvas2d.fillStyle = this.isMouseOverContinueButton() ? 'red' : 'black';
+			canvas2d.font = '30px Pkmn';
+			canvas2d.fillText(this.displayedTextRow2, 45, 545);
 		}
-		if (this.currentStep !== 0 && this.currentStep !== 1 && this.currentStep !== 2) {
-			this.drawPokemonAndItsStats(false);
+
+		if (this.isIntroDone === false) {
+			this.drawIntro();
+			return;
 		}
+
+		this.drawPokemonAndItsStats(false);
+
+		if (this.isPlayersPokemonSentOut === false) {
+			this.sentOutPlayerPokemon();
+			return;
+		}
+
+		this.drawPokemonAndItsStats(true);
 
 		if (this.activeOption === 'fight') {
 			this.drawMoves();
-			return;
 		}
 
 		if (this.activeOption === 'pkmn') {
 			this.drawPokemonList();
-			return;
 		}
 
 		if (this.activeOption === 'pack') {
 			this.drawPack();
-			return;
 		}
 
-		if (this.currentMoveText !== '') {
-			canvas2d.fillStyle = 'black';
-			canvas2d.font = '30px Pkmn';
-			canvas2d.fillText(this.currentMoveText, 45, 490);
-
-			return;
-		}
-
-		if (this.battleOver) {
-			canvas2d.fillStyle = 'black';
-			canvas2d.font = '30px Pkmn';
-
-			const wildPokemonData = this.world.pokemonsManager.getPokemonInfoByIndex(this.wildPokemon.id);
-			if (this.isPlayerWinner) {
-				if (
-					this.world.mouseScreenX >= 37 &&
-					this.world.mouseScreenX <= 960 &&
-					this.world.mouseScreenY >= 430 &&
-					this.world.mouseScreenY <= 580
-				) {
-					// text color
-					canvas2d.fillStyle = 'purple';
-					this.isHoveringContinue = true;
-				} else {
-					canvas2d.fillStyle = 'black';
-				}
-
-				if (this.pokemonWasCaught) {
-					canvas2d.fillText('Gotcha! Wild ' + wildPokemonData?.name.toUpperCase() + ' was caught!', 45, 490);
-					canvas2d.fillText('Click here to continue...', 45, 550);
-				} else {
-					canvas2d.fillText(wildPokemonData?.name.toUpperCase(), 45, 490);
-					canvas2d.fillText(`was defeated! Click here to continue...`, 45, 550);
-				}
-			} else {
-				canvas2d.fillText('You', 45, 490);
-				canvas2d.fillText(`were defeated!`, 45, 550);
-			}
-
-			return;
-		}
-
-		if (this.isWaitingForOtherPlayer && this.currentStep !== 3) {
-			canvas2d.fillStyle = 'black';
-			canvas2d.font = '30px Pkmn';
-			canvas2d.fillText('Waiting for other player...', 45, 490);
-			return;
-		}
-
-		if (this.currentStep === 0) {
-			this.runEncounterAnimation();
-		} else if (this.currentStep === 1) {
-			this.drawIntro();
-		} else if (this.currentStep === 2) {
-			this.drawIntro();
-			this.drawPokemonCounter();
-		} else if (this.currentStep === 3) {
-			if (!this.battleBackgroundImage) return;
-			this.sentOutPlayerPokemon();
-		} else if (this.currentStep === 4) {
-			const isCurrentPokemonFainted =
-				this.player.party.filter(pokemon => pokemon !== null)[this.playerCurrentPokemonIndex].hp === 0;
-
-			if (!isCurrentPokemonFainted) {
-				this.drawBattleOptions();
-			}
+		if (
+			this.displayedTextRow1 === '' &&
+			this.displayedTextRow2 === '' &&
+			this.activeOption === null &&
+			this.eventQueue.length === 0
+		) {
+			this.drawBattleOptions();
 		}
 	}
 
 	private leaveBattle() {
 		this.world.battle = null;
-		this.world.isBattling = false;
 		this.world.client.audioManager.playMusic('new_bark_town.mp3');
 	}
 
@@ -602,16 +487,21 @@ export default class WildBattle {
 
 		canvas2d.fillStyle = 'black';
 		canvas2d.font = '30px Pkmn';
+
+		this.hoveredPokemon = null; // Reset before checking hovers
+
+		const playerPartyWithoutNulls = this.player.party.filter(pokemon => pokemon !== null);
+
 		for (let i = 0; i < playerPokemonCount; i++) {
-			const pokemon = this.player.party.filter(pokemon => pokemon !== null)[i];
+			const pokemon = playerPartyWithoutNulls[i]; // Use filtered array
 			const pokemonData = this.world.pokemonsManager.getPokemonInfoByIndex(pokemon?.id);
 			if (!pokemonData) return;
 			const isFainted = pokemon.hp === 0;
-			canvas2d.fillStyle = isFainted ? 'gray' : 'black';
+			const isCurrentPokemon = i === this.playerCurrentPokemonIndex;
+			canvas2d.fillStyle = isFainted || isCurrentPokemon ? 'gray' : 'black';
 			canvas2d.fillText(`${pokemonData.name.toUpperCase()}`, 45, 50 + i * 60);
 
-			// draw level
-
+			// Draw level
 			canvas2d.font = '30px Pkmn';
 			canvas2d.fillText(`Lv. ${pokemon.level}`, 400, 50 + i * 60);
 
@@ -630,16 +520,16 @@ export default class WildBattle {
 				this.world.mouseScreenY >= 50 + i * 60 - 40 &&
 				this.world.mouseScreenY <= 50 + i * 60 - 40 + 50
 			) {
+				if (isFainted || isCurrentPokemon) continue;
 				canvas2d.strokeStyle = 'rgba(0, 0, 0, 0.5)';
 				canvas2d.lineWidth = 2;
 				canvas2d.strokeRect(45 - 10, 50 + i * 60 - 40, 1000 - 10 - 35, 50);
-				this.hoveredPokemon = i;
+				this.hoveredPokemon = i; // Set hovered index
 			}
 		}
 
-		// draw cancel only if current pkmn is not fainted
-		if (this.player.party.filter(pokemon => pokemon !== null)[this.playerCurrentPokemonIndex].hp > 0) {
-			// draw cancel
+		// Draw cancel only if current Pokémon is not fainted
+		if (playerPartyWithoutNulls[this.playerCurrentPokemonIndex].hp > 0) {
 			canvas2d.fillStyle = 'black';
 			canvas2d.fillText('CANCEL', 45, 50 + playerPokemonCount * 60);
 
@@ -652,7 +542,7 @@ export default class WildBattle {
 				canvas2d.strokeStyle = 'rgba(0, 0, 0, 0.5)';
 				canvas2d.lineWidth = 2;
 				canvas2d.strokeRect(45 - 10, 50 + playerPokemonCount * 60 - 40, 1000 - 10 - 35, 50);
-				this.hoveredPokemon = -1;
+				this.hoveredPokemon = -1; // Set hover to cancel button
 			}
 		}
 	}
@@ -701,7 +591,9 @@ export default class WildBattle {
 			this.isMouseOverRun = true;
 		} else {
 			this.isMouseOverFight = false;
+			this.isMouseOverPack = false;
 			this.isMouseOverPkmn = false;
+			this.isMouseOverRun = false;
 		}
 	}
 
@@ -724,7 +616,7 @@ export default class WildBattle {
 
 			// draw hp bar
 			canvas2d.fillStyle = 'green';
-			canvas2d.fillRect(161, 63, (this.enemyCurrentPokemonPreviousHp / pokemon.maxHp) * 243, 13);
+			canvas2d.fillRect(161, 63, (this.enemyPokemonHp / pokemon.maxHp) * 243, 13);
 		} else {
 			canvas2d.drawImage(this.playerPokemonSprites[this.playerCurrentPokemonIndex], 50, 200, 200, 200);
 
@@ -743,12 +635,12 @@ export default class WildBattle {
 
 			// draw hp bar
 			canvas2d.fillStyle = 'green';
-			canvas2d.fillRect(672, 288, (this.playerCurrentPokemonPreviousHp / pokemon.maxHp) * 243, 13);
+			canvas2d.fillRect(672, 288, (this.playerPokemonHp / pokemon.maxHp) * 243, 13);
 
 			// draw hp / hp
 			canvas2d.fillStyle = 'black';
 			canvas2d.font = '40px Pkmn';
-			canvas2d.fillText(this.playerCurrentPokemonPreviousHp.toString(), 680, 350);
+			canvas2d.fillText(this.playerPokemonHp.toString(), 680, 350);
 			canvas2d.fillText(`${pokemon.maxHp}`, 820, 350);
 		}
 	}
@@ -763,7 +655,7 @@ export default class WildBattle {
 			// draw spawn animation
 			if (this.playerSentOutCounter < 125) {
 				if (this.playerSentOutCounter === 121) {
-					this.world.client.audioManager.playSfx('ball_poof.wav', false);
+					this.world.client.audioManager.playSfx('ball_poof.ogg', false);
 				}
 				canvas2d.drawImage(this.pokemonSpawnFrames[0].image, 50, 200, 200, 200);
 			} else if (this.playerSentOutCounter < 130) {
@@ -775,36 +667,36 @@ export default class WildBattle {
 			}
 
 			if (this.playerSentOutCounter > 165) {
-				this.currentStep = 4;
+				this.isPlayersPokemonSentOut = true;
+				this.displayedTextRow1 = '';
+				this.displayedTextRow2 = '';
 			}
 		} else {
-			canvas2d.fillStyle = 'black';
-			canvas2d.font = '30px Pkmn';
-			canvas2d.fillText(`Go! ${pokemonName.toUpperCase()}!`, 45, 490);
+			this.displayedTextRow1 = `Go! ${pokemonName.toUpperCase()}!`;
 		}
 	}
 
-	public drawIntro() {
+	private drawIntro(): void {
 		if (!this.trainerBackImage) return;
+		if (!this.wildPokemonSprite) return;
 
-		if (this.currentBattleIntroFrame * 5 < 751) this.currentBattleIntroFrame++;
+		if (this.currentBattleIntroFrame * 5 <= 750) this.currentBattleIntroFrame++;
 		canvas2d.drawImage(this.wildPokemonSprite, this.currentBattleIntroFrame * 5, 0, 200, 200);
 		canvas2d.drawImage(this.trainerBackImage, 800 - this.currentBattleIntroFrame * 5, 200, 200, 200);
 
+		if (this.currentBattleIntroFrame * 5 >= 750) {
+			this.drawPokemonCounter();
+		}
 		if (this.currentBattleIntroFrame * 5 === 750) {
 			this.world.client.audioManager.playSfx('positioned.ogg', false);
+			const wildPokemonData = this.world.pokemonsManager.getPokemonInfoByIndex(this.wildPokemon.id);
+
+			this.displayedTextRow1 = `Wild ${wildPokemonData?.name.toUpperCase()} appeared!`;
+
+			setTimeout(() => {
+				this.isIntroDone = true;
+			}, 2000);
 		}
-
-		const wildPokemonData = this.world.pokemonsManager.getPokemonInfoByIndex(this.wildPokemon.id);
-
-		if (this.currentBattleIntroFrame * 5 >= 750) {
-			canvas2d.fillStyle = 'black';
-			canvas2d.font = '30px Pkmn';
-			canvas2d.fillText(`Wild ${wildPokemonData?.name.toUpperCase()} appeared!`, 45, 490);
-			this.currentStep = 2;
-		}
-
-		return;
 	}
 
 	private drawPokemonCounter() {
@@ -828,20 +720,19 @@ export default class WildBattle {
 		});
 
 		this.pokemonCounterCounter++;
-
-		if (this.pokemonCounterCounter > 120) {
-			this.currentStep = 3;
-		}
 	}
 
 	public handleClick(event: MouseEvent) {
+		if (this.isMouseOverContinueButton()) {
+			this.leaveBattle();
+			return;
+		}
+
 		if (this.isHoveringContinue) {
 			this.leaveBattle();
 			return;
 		}
-		if (this.battleOver) return;
-		if (this.isWaitingForOtherPlayer) return;
-		if (this.isActionSelected) return;
+		if (this.isProcessingTurn) return;
 
 		if (this.activeOption === null) {
 			if (this.isMouseOverFight) {
@@ -871,6 +762,10 @@ export default class WildBattle {
 				const moveId = this.player.party.filter(pokemon => pokemon !== null)[this.playerCurrentPokemonIndex]
 					.moves[hoveredMove];
 
+				if (moveId === null) return;
+				const move = this.world.pokemonMovesManager.getPokemonMoveInfoById(moveId);
+				if (!move) return;
+
 				this.world.actions?.sendBattleAction(this.player.entityID, 'FIGHT', moveId);
 				this.isWaitingForOtherPlayer = true;
 				this.activeOption = null;
@@ -899,5 +794,81 @@ export default class WildBattle {
 				this.isActionSelected = true;
 			}
 		}
+	}
+
+	private async loadAssets(): Promise<void> {
+		const sprite = await this.world.spriteCache.getSprite('blank_battle_screen.png');
+		if (sprite) {
+			this.battleBackgroundImage = sprite;
+		}
+
+		const numberOfFrames = 28;
+
+		for (let i = 1; i < numberOfFrames + 1; i++) {
+			const battleEncounterFrame = await this.world.spriteCache.getSprite(`encounter_frame_${i}.png`);
+			if (battleEncounterFrame) {
+				this.battleEncounterFrames.push({
+					frame: i,
+					image: battleEncounterFrame,
+				});
+			}
+		}
+
+		for (let i = 1; i < 4 + 1; i++) {
+			const pokemonSpawnFrame = await this.world.spriteCache.getSprite(`spawn_pokemon_frame_${i}.png`);
+			if (pokemonSpawnFrame) {
+				this.pokemonSpawnFrames.push({
+					frame: i,
+					image: pokemonSpawnFrame,
+				});
+			}
+		}
+
+		this.trainerBackImage = await this.world.spriteCache.getSprite('trainer_back.png');
+		this.pokemonCounterImage = await this.world.spriteCache.getSprite('pokemon_counter.png');
+		this.counterPokeBallImage = await this.world.spriteCache.getSprite('counter_poke_ball.png');
+		this.statsMeterEnemyImage = await this.world.spriteCache.getSprite('stats_meter_enemy.png');
+		this.statsMeterPlayerImage = await this.world.spriteCache.getSprite('stats_meter_player.png');
+		this.battleOptionsImage = await this.world.spriteCache.getSprite('battle_options.png');
+		this.hpGaugeImage = await this.world.spriteCache.getSprite('hp_gauge.png');
+
+		this.player.party.forEach(async (pokemon, index) => {
+			const pokemonData = this.world.pokemonsManager.getPokemonInfoByIndex(pokemon?.id);
+			if (!pokemonData) return;
+
+			if (pokemon) {
+				const sprite = await this.world.spriteCache.getSprite(`${pokemonData.sprite}_back.png`);
+				if (sprite) {
+					this.playerPokemonSprites[index] = sprite;
+				} else {
+					throw new Error(`Failed to load sprite for ${pokemonData.name}`);
+				}
+			}
+		});
+
+		const pokemonData = this.world.pokemonsManager.getPokemonInfoByIndex(this.wildPokemon.id);
+		if (!pokemonData) return;
+
+		const wildPokemonSprite = await this.world.spriteCache.getSprite(`${pokemonData.sprite}.png`);
+		if (wildPokemonSprite) {
+			this.wildPokemonSprite = wildPokemonSprite;
+		} else {
+			throw new Error(`Failed to load sprite for ${pokemonData.name}`);
+		}
+	}
+
+	private isMouseOverContinueButton(): boolean {
+		canvas2d.font = '30px Pkmn';
+		const clickToContinueTextLength =
+			// meassure text length
+			canvas2d.measureText('Click here to continue...').width;
+
+		return (
+			this.world.mouseScreenX >= 45 &&
+			this.world.mouseScreenX <= 45 + clickToContinueTextLength &&
+			this.world.mouseScreenY >= 545 - 40 &&
+			this.world.mouseScreenY <= 545 + 10 &&
+			this.displayedTextRow2.includes('continue')
+		);
 	}
 }

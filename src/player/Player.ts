@@ -35,6 +35,8 @@ export default class Player {
 		name: string;
 	} | null = null;
 
+	public storyProgress: number = 0;
+
 	constructor(world: World, entityID: string) {
 		this.entityID = entityID;
 		this.world = world;
@@ -89,6 +91,7 @@ export default class Player {
 		this.party = player.party;
 		this.inventory = player.inventory;
 		this.inventoryAmounts = player.inventoryAmounts;
+		this.storyProgress = player.storyProgress;
 	}
 
 	// Helper function to retrieve the correct walking sprite
